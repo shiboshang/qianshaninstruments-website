@@ -7,7 +7,8 @@
 
   /* World coordinate space (equirectangular-ish, simplified) that all
      drawing happens in; mapped onto the canvas with a "slice" fit so it
-     always fills the band without distortion. */
+     always fills the band without distortion. X wraps at WORLD_W, same
+     as real longitude, so the map can pan sideways forever. */
   var WORLD_W = 1000, WORLD_H = 460;
 
   /* Hand-plotted continent silhouettes in world space. Not geographic
@@ -79,6 +80,14 @@
     return false;
   }
 
+  /* shortest signed delta from a to b along a wrapping WORLD_W axis */
+  function wrapDx(a, b){
+    var d = (b - a) % WORLD_W;
+    if (d > WORLD_W / 2) d -= WORLD_W;
+    if (d < -WORLD_W / 2) d += WORLD_W;
+    return d;
+  }
+
   /* ---- Seeded RNG so the layout is stable across reloads ---- */
   var seed = 42;
   function rand(){
@@ -137,7 +146,9 @@
     { a: HOME, b: HUBS[4], c: arcControl(HOME, HUBS[4], 40) }
   ];
 
-  /* ---- Sizing: fit WORLD_W x WORLD_H into the canvas, "slice" style ---- */
+  /* ---- Sizing: fit WORLD_W x WORLD_H into the canvas, "slice" style.
+     The band's own box size never changes -- only the map drawn inside
+     it pans horizontally as the page scrolls. ---- */
   var scale = 1, offsetX = 0, offsetY = 0, cssW = 0, cssH = 0;
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
 
@@ -154,7 +165,18 @@
   resize();
   window.addEventListener("resize", resize);
 
-  /* ---- Mouse tracking (world-space coords, eased) ---- */
+  /* ---- Scroll-driven horizontal pan (in world units) ---- */
+  var panX = 0;
+  var PAN_WRAPS = 1.4; // how many full map-widths it pans across over the whole page
+
+  function updatePan(){
+    var doc = document.documentElement;
+    var scrollable = Math.max(1, doc.scrollHeight - window.innerHeight);
+    var progress = window.scrollY / scrollable;
+    panX = progress * WORLD_W * PAN_WRAPS;
+  }
+
+  /* ---- Mouse tracking (world-space coords, eased, pan-aware) ---- */
   var mouse = { x: -9999, y: -9999, active: false };
   var mouseTarget = { x: -9999, y: -9999 };
 
@@ -162,7 +184,9 @@
     var rect = canvas.getBoundingClientRect();
     var cx = clientX - rect.left;
     var cy = clientY - rect.top;
-    mouseTarget.x = (cx - offsetX) / scale;
+    var panXmod = ((panX % WORLD_W) + WORLD_W) % WORLD_W;
+    var wx = (cx - offsetX) / scale + panXmod;
+    mouseTarget.x = ((wx % WORLD_W) + WORLD_W) % WORLD_W;
     mouseTarget.y = (cy - offsetY) / scale;
     mouse.active = true;
   }
@@ -197,26 +221,7 @@
 
   var t = 0;
 
-  function draw(){
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    ctx.clearRect(0, 0, cssW, cssH);
-    ctx.setTransform(DPR * scale, 0, 0, DPR * scale, DPR * offsetX, DPR * offsetY);
-
-    // ease mouse toward target (or drift back off-map when idle)
-    mouse.x += (mouseTarget.x - mouse.x) * 0.15;
-    mouse.y += (mouseTarget.y - mouse.y) * 0.15;
-
-    // static-ish background dot texture, gentle twinkle
-    for (var i = 0; i < dots.length; i++){
-      var d = dots[i];
-      var o = d.baseO + Math.sin(t * 0.6 + d.phase) * 0.12;
-      ctx.beginPath();
-      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(207,224,247," + Math.max(0, o).toFixed(3) + ")";
-      ctx.fill();
-    }
-
-    // animated network particles: idle sway + pull toward mouse
+  function stepParticles(){
     for (var p = 0; p < particles.length; p++){
       var pt = particles[p];
       var swayX = Math.cos(t * pt.speed + pt.phase) * pt.amp;
@@ -225,7 +230,7 @@
       var targetY = pt.by + swayY;
 
       if (mouse.active){
-        var dx = mouse.x - pt.bx, dy = mouse.y - pt.by;
+        var dx = wrapDx(pt.bx, mouse.x), dy = mouse.y - pt.by;
         var dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < PULL_RADIUS){
           var pull = (1 - dist / PULL_RADIUS);
@@ -238,6 +243,18 @@
       pt.x += (targetX - pt.x) * 0.08;
       pt.y += (targetY - pt.y) * 0.08;
     }
+  }
+
+  function drawScene(){
+    // static-ish background dot texture, gentle twinkle
+    for (var i = 0; i < dots.length; i++){
+      var d = dots[i];
+      var o = d.baseO + Math.sin(t * 0.6 + d.phase) * 0.12;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(207,224,247," + Math.max(0, o).toFixed(3) + ")";
+      ctx.fill();
+    }
 
     // connective lines between nearby particles
     ctx.lineWidth = 1 / scale;
@@ -245,14 +262,14 @@
       var pa = particles[a];
       for (var b = a + 1; b < particles.length; b++){
         var pb = particles[b];
-        var ddx = pa.x - pb.x, ddy = pa.y - pb.y;
+        var ddx = wrapDx(pb.x, pa.x), ddy = pa.y - pb.y;
         var d2 = ddx * ddx + ddy * ddy;
         if (d2 < LINK_RADIUS * LINK_RADIUS){
           var op = (1 - Math.sqrt(d2) / LINK_RADIUS) * 0.35;
           ctx.strokeStyle = "rgba(159,216,255," + op.toFixed(3) + ")";
           ctx.beginPath();
           ctx.moveTo(pa.x, pa.y);
-          ctx.lineTo(pb.x, pb.y);
+          ctx.lineTo(pa.x - ddx, pa.y - ddy);
           ctx.stroke();
         }
       }
@@ -262,13 +279,13 @@
     if (mouse.active){
       for (var m = 0; m < particles.length; m++){
         var pm = particles[m];
-        var mdx = mouse.x - pm.x, mdy = mouse.y - pm.y;
+        var mdx = wrapDx(pm.x, mouse.x), mdy = mouse.y - pm.y;
         var mdist = Math.sqrt(mdx * mdx + mdy * mdy);
         if (mdist < MOUSE_LINK_RADIUS){
           var mop = (1 - mdist / MOUSE_LINK_RADIUS) * 0.55;
           ctx.strokeStyle = "rgba(255,209,102," + mop.toFixed(3) + ")";
           ctx.beginPath();
-          ctx.moveTo(mouse.x, mouse.y);
+          ctx.moveTo(pm.x + mdx, pm.y + mdy);
           ctx.lineTo(pm.x, pm.y);
           ctx.stroke();
         }
@@ -319,6 +336,32 @@
     ctx.shadowBlur = 6;
     ctx.fill();
     ctx.shadowBlur = 0;
+  }
+
+  function draw(){
+    updatePan();
+
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    // ease mouse toward target
+    mouse.x += wrapDx(mouse.x, mouseTarget.x) * 0.15;
+    mouse.x = ((mouse.x % WORLD_W) + WORLD_W) % WORLD_W;
+    mouse.y += (mouseTarget.y - mouse.y) * 0.15;
+
+    stepParticles();
+
+    var panXmod = ((panX % WORLD_W) + WORLD_W) % WORLD_W;
+
+    // two tiled copies cover the seam as the map wraps around
+    var shifts = [-panXmod, WORLD_W - panXmod];
+    for (var s = 0; s < shifts.length; s++){
+      ctx.setTransform(
+        DPR * scale, 0, 0, DPR * scale,
+        DPR * (offsetX + shifts[s] * scale), DPR * offsetY
+      );
+      drawScene();
+    }
   }
 
   function tick(){
