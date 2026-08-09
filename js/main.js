@@ -1,6 +1,25 @@
 (function(){
   "use strict";
 
+  /* ---------- Web3Forms submission helper ---------- */
+  var WEB3FORMS_KEY = "27c73690-ceff-4619-97b8-672518602778";
+
+  function submitToWeb3Forms(form, subject, onDone){
+    var data = new FormData(form);
+    data.append("access_key", WEB3FORMS_KEY);
+    data.append("subject", subject);
+    data.append("from_name", "QianShan Instrument Website");
+
+    fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { "Accept": "application/json" },
+      body: data
+    })
+      .then(function(res){ return res.json(); })
+      .then(function(res){ onDone(!!res.success); })
+      .catch(function(){ onDone(false); });
+  }
+
   /* ---------- Language toggle ---------- */
   var root = document.documentElement;
   var langToggle = document.getElementById("langToggle");
@@ -312,23 +331,35 @@
   quoteForm.addEventListener("submit", function(e){
     e.preventDefault();
     var isZh = root.classList.contains("lang-zh");
-    quoteNote.textContent = isZh
-      ? "感谢您的留言！我们会尽快与您联系。"
-      : "Thank you for reaching out! We'll get back to you soon.";
-    quoteForm.reset();
+    var submitBtn = quoteForm.querySelector(".quote-submit");
+    if (submitBtn) submitBtn.disabled = true;
+    quoteNote.textContent = isZh ? "正在发送…" : "Sending…";
+    submitToWeb3Forms(quoteForm, "QianShan Website - Quick Quote Request", function(success){
+      if (submitBtn) submitBtn.disabled = false;
+      quoteNote.textContent = success
+        ? (isZh ? "感谢您的留言！我们会尽快与您联系。" : "Thank you for reaching out! We'll get back to you soon.")
+        : (isZh ? "发送失败，请稍后重试，或直接发邮件联系我们。" : "Something went wrong. Please try again later or email us directly.");
+      if (success) quoteForm.reset();
+    });
   });
 
-  /* ---------- Contact form (front-end only, no backend wired up) ---------- */
+  /* ---------- Contact form ---------- */
   var form = document.getElementById("contactForm");
   var note = document.getElementById("formNote");
   if (form){
     form.addEventListener("submit", function(e){
       e.preventDefault();
       var isZh = root.classList.contains("lang-zh");
-      note.textContent = isZh
-        ? "感谢您的留言！我们会尽快与您联系。（表单尚未连接邮件服务，请先配置后端后再上线）"
-        : "Thank you for reaching out! We'll get back to you soon. (Form is not yet wired to an email service — connect a backend before going live.)";
-      form.reset();
+      var submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      note.textContent = isZh ? "正在发送…" : "Sending…";
+      submitToWeb3Forms(form, "QianShan Website - Contact Form", function(success){
+        if (submitBtn) submitBtn.disabled = false;
+        note.textContent = success
+          ? (isZh ? "感谢您的留言！我们会尽快与您联系。" : "Thank you for reaching out! We'll get back to you soon.")
+          : (isZh ? "发送失败，请稍后重试，或直接发邮件联系我们。" : "Something went wrong. Please try again later or email us directly.");
+        if (success) form.reset();
+      });
     });
   }
 
