@@ -411,6 +411,11 @@ html.lang-en .lang-toggle__en{opacity:1;}
 .project-card{
   position:relative;flex:0 0 320px;height:220px;border-radius:var(--radius);overflow:hidden;
 }
+/* Some in-app mobile browsers mis-size a flex item whose only children
+   are position:absolute, collapsing the carousel card toward 0 width.
+   An explicit width (scoped to the carousel, not the showcase-page grid
+   which sets its own flex-basis) is the fix. */
+.carousel-track .project-card{width:320px;min-width:320px;}
 .project-media{position:absolute;inset:0;}
 .project-media--1{background:linear-gradient(135deg,var(--blue-800),var(--blue-500));}
 .project-media--2{background:linear-gradient(135deg,#33415c,var(--blue-700));}
