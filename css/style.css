@@ -56,10 +56,16 @@ html.lang-en .zh{display:none;}
 .social-icon--instagram{background:linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888);}
 .social-icon--instagram svg{fill:none;stroke:#fff;stroke-width:2;}
 .lang-toggle{
-  background:none;border:1px solid rgba(255,255,255,.35);color:#fff;
-  border-radius:16px;padding:5px 16px;font-size:13px;cursor:pointer;
+  display:flex;align-items:center;gap:5px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.55);color:#fff;
+  border-radius:16px;padding:6px 16px;font-size:14px;font-weight:600;
+  letter-spacing:.02em;cursor:pointer;
 }
-.lang-toggle:hover{background:rgba(255,255,255,.12);}
+.lang-toggle:hover{background:rgba(255,255,255,.22);border-color:#fff;}
+.lang-toggle__zh,.lang-toggle__en{opacity:.55;transition:opacity .15s ease;}
+.lang-toggle__sep{opacity:.5;}
+html.lang-zh .lang-toggle__zh{opacity:1;}
+html.lang-en .lang-toggle__en{opacity:1;}
 
 /* ===== Header ===== */
 .header{
