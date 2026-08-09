@@ -6,9 +6,9 @@
   var ctx = canvas.getContext("2d");
 
   /* World coordinate space (equirectangular-ish, simplified) that all
-     drawing happens in; mapped onto the canvas with a "slice" fit so it
-     always fills the band without distortion. X wraps at WORLD_W, same
-     as real longitude, so the map can pan sideways forever. */
+     drawing happens in; mapped onto the canvas with a "slice" fit (plus
+     a bit of overscan for pan room) so it always fills the band without
+     distortion. */
   var WORLD_W = 1000, WORLD_H = 460;
 
   /* Hand-plotted continent silhouettes in world space. Not geographic
@@ -80,14 +80,6 @@
     return false;
   }
 
-  /* shortest signed delta from a to b along a wrapping WORLD_W axis */
-  function wrapDx(a, b){
-    var d = (b - a) % WORLD_W;
-    if (d > WORLD_W / 2) d -= WORLD_W;
-    if (d < -WORLD_W / 2) d += WORLD_W;
-    return d;
-  }
-
   /* ---- Seeded RNG so the layout is stable across reloads ---- */
   var seed = 42;
   function rand(){
@@ -146,10 +138,13 @@
     { a: HOME, b: HUBS[4], c: arcControl(HOME, HUBS[4], 40) }
   ];
 
-  /* ---- Sizing: fit WORLD_W x WORLD_H into the canvas, "slice" style.
-     The band's own box size never changes -- only the map drawn inside
-     it pans horizontally as the page scrolls. ---- */
-  var scale = 1, offsetX = 0, offsetY = 0, cssW = 0, cssH = 0;
+  /* ---- Sizing: fit WORLD_W x WORLD_H into the canvas, then zoom in a
+     bit further (OVERSCAN) so there's always vertical slack to pan
+     through, regardless of the band's aspect ratio. The band's own box
+     size never changes -- only the map drawn inside it pans up/down as
+     the page scrolls. ---- */
+  var OVERSCAN = 1.35;
+  var scale = 1, offsetX = 0, baseOffsetY = 0, slackY = 0, cssW = 0, cssH = 0;
   var DPR = Math.min(window.devicePixelRatio || 1, 2);
 
   function resize(){
@@ -158,22 +153,24 @@
     cssH = rect.height;
     canvas.width = Math.max(1, Math.round(cssW * DPR));
     canvas.height = Math.max(1, Math.round(cssH * DPR));
-    scale = Math.max(cssW / WORLD_W, cssH / WORLD_H);
+    scale = Math.max(cssW / WORLD_W, cssH / WORLD_H) * OVERSCAN;
     offsetX = (cssW - WORLD_W * scale) / 2;
-    offsetY = (cssH - WORLD_H * scale) / 2;
+    baseOffsetY = (cssH - WORLD_H * scale) / 2;
+    slackY = Math.max(0, WORLD_H * scale - cssH);
   }
   resize();
   window.addEventListener("resize", resize);
 
-  /* ---- Scroll-driven horizontal pan (in world units) ---- */
-  var panX = 0;
-  var PAN_WRAPS = 1.4; // how many full map-widths it pans across over the whole page
+  /* ---- Scroll-driven vertical pan (clamped, no wrap -- latitude
+     doesn't loop the way longitude does) ---- */
+  var offsetY = 0;
 
   function updatePan(){
     var doc = document.documentElement;
     var scrollable = Math.max(1, doc.scrollHeight - window.innerHeight);
-    var progress = window.scrollY / scrollable;
-    panX = progress * WORLD_W * PAN_WRAPS;
+    var progress = Math.min(1, Math.max(0, window.scrollY / scrollable));
+    // progress 0 -> top of map showing, progress 1 -> bottom of map showing
+    offsetY = baseOffsetY - (progress - 0.5) * slackY;
   }
 
   /* ---- Mouse tracking (world-space coords, eased, pan-aware) ---- */
@@ -184,9 +181,7 @@
     var rect = canvas.getBoundingClientRect();
     var cx = clientX - rect.left;
     var cy = clientY - rect.top;
-    var panXmod = ((panX % WORLD_W) + WORLD_W) % WORLD_W;
-    var wx = (cx - offsetX) / scale + panXmod;
-    mouseTarget.x = ((wx % WORLD_W) + WORLD_W) % WORLD_W;
+    mouseTarget.x = (cx - offsetX) / scale;
     mouseTarget.y = (cy - offsetY) / scale;
     mouse.active = true;
   }
@@ -230,7 +225,7 @@
       var targetY = pt.by + swayY;
 
       if (mouse.active){
-        var dx = wrapDx(pt.bx, mouse.x), dy = mouse.y - pt.by;
+        var dx = mouse.x - pt.bx, dy = mouse.y - pt.by;
         var dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < PULL_RADIUS){
           var pull = (1 - dist / PULL_RADIUS);
@@ -262,14 +257,14 @@
       var pa = particles[a];
       for (var b = a + 1; b < particles.length; b++){
         var pb = particles[b];
-        var ddx = wrapDx(pb.x, pa.x), ddy = pa.y - pb.y;
+        var ddx = pa.x - pb.x, ddy = pa.y - pb.y;
         var d2 = ddx * ddx + ddy * ddy;
         if (d2 < LINK_RADIUS * LINK_RADIUS){
           var op = (1 - Math.sqrt(d2) / LINK_RADIUS) * 0.35;
           ctx.strokeStyle = "rgba(159,216,255," + op.toFixed(3) + ")";
           ctx.beginPath();
           ctx.moveTo(pa.x, pa.y);
-          ctx.lineTo(pa.x - ddx, pa.y - ddy);
+          ctx.lineTo(pb.x, pb.y);
           ctx.stroke();
         }
       }
@@ -279,13 +274,13 @@
     if (mouse.active){
       for (var m = 0; m < particles.length; m++){
         var pm = particles[m];
-        var mdx = wrapDx(pm.x, mouse.x), mdy = mouse.y - pm.y;
+        var mdx = mouse.x - pm.x, mdy = mouse.y - pm.y;
         var mdist = Math.sqrt(mdx * mdx + mdy * mdy);
         if (mdist < MOUSE_LINK_RADIUS){
           var mop = (1 - mdist / MOUSE_LINK_RADIUS) * 0.55;
           ctx.strokeStyle = "rgba(255,209,102," + mop.toFixed(3) + ")";
           ctx.beginPath();
-          ctx.moveTo(pm.x + mdx, pm.y + mdy);
+          ctx.moveTo(mouse.x, mouse.y);
           ctx.lineTo(pm.x, pm.y);
           ctx.stroke();
         }
@@ -345,23 +340,13 @@
     ctx.clearRect(0, 0, cssW, cssH);
 
     // ease mouse toward target
-    mouse.x += wrapDx(mouse.x, mouseTarget.x) * 0.15;
-    mouse.x = ((mouse.x % WORLD_W) + WORLD_W) % WORLD_W;
+    mouse.x += (mouseTarget.x - mouse.x) * 0.15;
     mouse.y += (mouseTarget.y - mouse.y) * 0.15;
 
     stepParticles();
 
-    var panXmod = ((panX % WORLD_W) + WORLD_W) % WORLD_W;
-
-    // two tiled copies cover the seam as the map wraps around
-    var shifts = [-panXmod, WORLD_W - panXmod];
-    for (var s = 0; s < shifts.length; s++){
-      ctx.setTransform(
-        DPR * scale, 0, 0, DPR * scale,
-        DPR * (offsetX + shifts[s] * scale), DPR * offsetY
-      );
-      drawScene();
-    }
+    ctx.setTransform(DPR * scale, 0, 0, DPR * scale, DPR * offsetX, DPR * offsetY);
+    drawScene();
   }
 
   function tick(){
