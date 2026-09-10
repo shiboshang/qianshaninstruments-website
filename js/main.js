@@ -363,4 +363,30 @@
     });
   }
 
+  /* ---------- Image lightbox (product & engineer photos) ---------- */
+  var lightbox;
+  function openLightbox(src){
+    if (!lightbox){
+      lightbox = document.createElement("div");
+      lightbox.className = "lightbox";
+      lightbox.innerHTML = '<button class="lightbox-close" type="button" aria-label="Close">&times;</button><img alt="">';
+      lightbox.addEventListener("click", closeLightbox);
+      document.body.appendChild(lightbox);
+    }
+    lightbox.querySelector("img").src = src;
+    lightbox.classList.add("is-open");
+    document.body.style.overflow = "hidden";
+  }
+  function closeLightbox(){
+    if (lightbox) lightbox.classList.remove("is-open");
+    document.body.style.overflow = "";
+  }
+  document.addEventListener("click", function(e){
+    var img = e.target.closest ? e.target.closest(".model-figure img, .engineer-photo img") : null;
+    if (img) openLightbox(img.currentSrc || img.src);
+  });
+  document.addEventListener("keydown", function(e){
+    if (e.key === "Escape") closeLightbox();
+  });
+
 })();
