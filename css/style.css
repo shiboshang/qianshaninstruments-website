@@ -385,6 +385,7 @@ a.service-icon-card:hover{border-color:var(--blue-600);box-shadow:var(--shadow);
   font-size:12px;color:var(--grey-500);padding:10px;
 }
 .engineer-photo img{width:100%;height:auto;border-radius:6px;}
+.engineer-photo img ~ span{display:none;}
 .engineer-info h3{font-size:20px;color:var(--blue-900);margin-bottom:4px;}
 .engineer-title{font-size:13px;color:var(--blue-700);font-weight:600;margin:0 0 12px;}
 .engineer-info > p{font-size:14px;color:var(--grey-700);line-height:1.75;}
