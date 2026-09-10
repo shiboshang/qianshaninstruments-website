@@ -374,6 +374,29 @@ a.service-icon-card:hover{border-color:var(--blue-600);box-shadow:var(--shadow);
 .service-icon-card h4{font-size:15px;color:var(--blue-900);margin-bottom:4px;}
 .service-icon-card p{font-size:13px;color:var(--grey-500);margin:0;}
 
+/* ===== Engineer / selection-support card ===== */
+.engineer-card{
+  display:grid;grid-template-columns:240px 1fr;gap:28px;align-items:start;margin-top:20px;
+  background:#fff;border:1px solid var(--grey-300);border-radius:var(--radius);padding:24px;
+}
+.engineer-photo{
+  border:1px dashed var(--grey-300);border-radius:6px;background:var(--grey-100);
+  min-height:260px;display:flex;align-items:center;justify-content:center;text-align:center;
+  font-size:12px;color:var(--grey-500);padding:10px;
+}
+.engineer-photo img{width:100%;height:auto;border-radius:6px;}
+.engineer-info h3{font-size:20px;color:var(--blue-900);margin-bottom:4px;}
+.engineer-title{font-size:13px;color:var(--blue-700);font-weight:600;margin:0 0 12px;}
+.engineer-info > p{font-size:14px;color:var(--grey-700);line-height:1.75;}
+.engineer-contact{margin:14px 0 18px;display:flex;flex-direction:column;gap:8px;}
+.engineer-contact li{display:flex;gap:12px;font-size:14px;align-items:baseline;}
+.engineer-contact .k{flex:0 0 84px;color:var(--grey-500);}
+.engineer-contact a{color:var(--blue-700);font-weight:600;word-break:break-word;}
+@media (max-width:768px){
+  .engineer-card{grid-template-columns:1fr;}
+  .engineer-photo{min-height:200px;}
+}
+
 /* ===== Service network band ===== */
 .network-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:28px;}
 .network-card{
